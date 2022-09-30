@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>CryptoSim</title>
+    <style media="screen">
+    @keyframes reveal { 0% { transform: scaleY(0); } 100% { transform: scaleY(1); } }
+    @keyframes fade2black { 0% { opacity: 0; } 100% { opacity: 1; } }
+    * { box-sizing: border-box; cursor: url(assets/cursor.svg) -64 -64, auto }
+    html,body { margin: 0; overflow: hidden; height: 100%; }
+    body, button { font-family: sans-serif; }
+    body { background: #292e44; }
+    #root { position: relative; height: 100%; }
+    .fade2black { animation: fade2black 2s ease-in; position: absolute; z-index: 2; left: 0; right: 0; top: 0; bottom: 0; background: #000; }
+    .price { color: #fff; font-size: 24px; position: absolute;bottom: 10vh; left: 5vw; z-index: 1; padding: 10px; }
+    .chart { transition: transform 0.2s ease-in-out, left 0.2s ease-in; padding: 10px; position: relative; height: 100%; display: flex;  }
+    .bar { animation: reveal 0.2s ease-in; flex-shrink: 0; position: relative; width: 20px; border-radius: 4px; margin: 0 5px; }
+    .bar.up { background:#0fb88a; transform-origin: bottom; }
+    .bar.down { background:#e13349; transform-origin: top; }
+    .trade { position: absolute; bottom: 10vh; right: 5vw; padding: 20px;  display: flex; flex-direction: column; }
+    .stats { font-size: 18px; display: flex; color: #fff; padding-bottom: 15px; justify-content: space-between;}
+    .stats b, .price b { margin-right: 5px;}
+    .amount { width: 100%; margin-bottom: 17px; border-radius: 2px; outline: 2px solid rgba(0,0,0,1); font-size: 40px; border: 0; background: rgba(0,0,0,0.4); padding: 10px 10px; color: #fff }
+    .actions { display: flex; margin: -5px; }
+    .actions button { user-select: none; flex-basis: 50%; position: relative; border: 0; border-radius: 2px; outline: 2px solid rgba(0,0,0,1); font-size: 24px; margin: 0 5px; color: #fff; font-weight: bold; padding: 10px 60px; }
+    .actions button:active { top: 2px; }
+    .actions button.buy { background: #0fb88a; }
+    .actions button.sell { background: #e13349; }
+    </style>
+    <script type="text/javascript">
+
+    const createNode = (options) => {
+      const node = document.createElement(options.tag);
+      if(options.className) node.setAttribute('class',options.className);
+      if(options.innerHTML) node.innerHTML = options.innerHTML;
+      if(options.attributes) Object.keys(options.attributes).forEach(key => node.setAttribute(key, options.attributes[key]));
+      if(options.style) Object.keys(options.style).forEach(key => node.style[key] = options.style[key]);
+      if(options.cssText) node.style.cssText = options.cssText;
+      options.root.appendChild(node);
+      return node;
+    }
+
+    class Game {
+      constructor(){
+        document.addEventListener('DOMContentLoaded',this.init.bind(this));
+        document.addEventListener('click',this.handleClick.bind(this));
+        this.audio = {
+          click: new Audio('assets/click.mp3'),
+          hebought: new Audio('assets/hebought.wav'),
+          dumpeet: new Audio('assets/dumpeet.wav'),
+        }
+        this.root = null;
+        this.chart_y = 0;
+        this.bars = [];
+        this.update_interval = null;
+        this.portfolio = 0;
+        this.price = 1;
+        this.funds = 1000;
+        this.dumpit = false;
+        this.odds = 0.5;
+      }
+      init(){
+        this.bars = [];
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.root = document.getElementById('root');
+        this.price_el = createNode({ root: this.root, className: 'price', tag: 'div', innerHTML: `<b>BOG Coin Price:</b>` });
+        this.price_amount_el = createNode({ root: this.price_el, tag: 'span', innerHTML: this.price });
+        this.chart_el = createNode({ root: this.root, className: 'chart', tag: 'div', style: { left: 0, top: 0 } });
+        this.trade_el = createNode({ root: this.root, className: 'trade', tag: 'div' });
+        this.stats_el = createNode({ root: this.trade_el, className: 'stats', tag: 'div' });
+        this.funds_el = createNode({ root: this.stats_el, className: 'funds', tag: 'div', innerHTML: `<b>Funds:</b>` });
+        this.funds_amount_el = createNode({ root: this.funds_el, tag: 'span', innerHTML: this.funds });
+        this.portfolio_el = createNode({ root: this.stats_el, className: 'portfolio', tag: 'div', innerHTML: `<b>Portfolio:</b>` });
+        this.portfolio_amount_el = createNode({ root: this.portfolio_el, tag: 'span', innerHTML: this.portfolio === 0 ? '0' : 0 });
+        this.amount_el = createNode({ root: this.trade_el, className: 'amount', tag: 'input', attributes: { disabled: true, placeholder: '0', value: '1000' } });
+        this.actions_el = createNode({ root: this.trade_el, className: 'actions', tag: 'div' });
+        this.buy_el = createNode({ root: this.actions_el, className: 'buy', tag: 'button', innerHTML: 'BUY' });
+        this.sell_el = createNode({ root: this.actions_el, className: 'sell', tag: 'button', innerHTML: 'SELL' });
+        this.update_interval = setInterval(() => { this.update() },200);
+        this.chart_offset = 0;
+      }
+      updateStats(amount_change){
+        if(this.funds < 1 && this.portfolio < 1){
+          clearInterval(this.update_interval);
+          this.fade2black_el = createNode({ root: this.root, className: 'fade2black', tag: 'div' });
+        }
+        const change_price = this.dumpit ? parseFloat(this.price / -10) : parseFloat(this.price / amount_change);
+        this.price = (parseFloat(this.price) + change_price).toFixed(4)
+        this.price_amount_el.innerHTML = this.price;
+        if(this.portfolio){
+          const change_portfolio = this.dumpit ? parseFloat(this.portfolio / -10) : parseFloat(this.portfolio / amount_change);
+          this.portfolio = Math.floor(parseFloat(this.portfolio) + change_portfolio);
+          this.portfolio_amount_el.innerHTML = this.portfolio;
+        }
+      }
+      moveChartY(node){
+        const rect = node.getBoundingClientRect();
+        if(rect.top < 0){
+          this.chart_y = this.chart_y - rect.top + 30;
+          this.chart_el.style.transform = `translateY(${this.chart_y}px)`;
+        } else if(rect.bottom > this.height){
+          this.chart_y = this.chart_y - rect.height - 30;
+          this.chart_el.style.transform = `translateY(${this.chart_y}px)`;
+        }
+      }
+      moveChartX(){
+        return new Promise((resolve, reject) => {
+          if(this.bars.length * 40 <= this.width - (this.width / 4)) return resolve(true);
+          setTimeout(async () => {
+            await this.bars[0].node.remove();
+            this.chart_offset = this.chart_offset + 30;
+            this.chart_el.style.marginLeft = `${this.chart_offset}px`;
+            this.bars.splice(0,1);
+            return resolve(true)
+          },200);
+          this.chart_el.style.left = `${parseInt(this.chart_el.style.left) - 30}px`;
+        });
+      }
+      async update(){
+        const current = this.bars.slice(-1)[0];
+        if(current) {
+          this.updateStats(current.height * current.direction);
+          this.moveChartY(current.node);
+        }
+        await this.moveChartX();
+        this.bars.push(this.createBar());
+      }
+      createBar(position){
+        const current = this.bars.slice(-1)[0];
+        const direction = this.dumpit ? -1 : Math.random() < this.odds ? 1 : -1;
+        const base_height = this.dumpit ? this.height * 2 : this.height / 4;
+        const height = Math.floor(Math.random() * base_height + 10);
+        let top;
+        if(!current){
+          top = this.height / 2;
+        } else if(direction === 1 && direction !== current.direction){
+          top = current.top + (current.height - height);
+        } else if(direction !== 1 && direction !== current.direction){
+          top = current.top;
+        } else if(direction === 1){
+          top = current.top - height;
+        } else if(direction !== 1){
+          top = current.top + current.height;
+        }
+        const className = `bar ${direction === 1 ? 'up' : 'down'}`;
+        const cssText = `height: ${height}px; top: ${top}px`;
+        return {
+          node: createNode({ root: this.chart_el, className: className, tag: 'div', cssText: cssText }),
+          direction: direction,
+          height: height,
+          top: top,
+        }
+      }
+      async hebought(){
+        this.sell_el.disabled = true;
+        this.odds = 0.9;
+        await this.playSound('hebought');
+        this.playSound('dumpeet');
+        this.dumpit = true;
+      }
+      buy(){
+        const input = parseInt(this.amount_el.value);
+        if(!input || input !== this.funds) return;
+        this.portfolio = input;
+        this.portfolio_amount_el.innerHTML = input;
+        this.funds = 0;
+        this.funds_amount_el.innerHTML = 0;
+        this.amount_el.value = null;
+        this.odds = 0.7;
+        if(input > Math.random() * 2000 + 1200) this.hebought();
+      }
+      sell(){
+        const amount = this.portfolio;
+        if(!amount) return;
+        this.funds = amount;
+        this.funds_amount_el.innerHTML = amount;
+        this.amount_el.value = amount;
+        this.portfolio = 0;
+        this.portfolio_amount_el.innerHTML = 0;
+        this.odds = 0.4;
+      }
+      playSound(effect="hebought"){
+        return new Promise(async (resolve, reject) => {
+          await this.audio[effect].pause();
+          this.audio[effect].currentTime = 0;
+          this.audio[effect].play();
+          this.audio[effect].addEventListener('ended',() => resolve(true) );
+        });
+      }
+      async handleClick(event){
+        if(event.target.closest('button')){
+          await this.playSound('click');
+          if(event.target.closest('.buy')) this.buy();
+          if(event.target.closest('.sell')) this.sell();
+        }
+      }
+    }
+
+    const game = new Game();
+
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
