@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=0.8, maximum-scale=1.0, user-scalable=no">
     <meta charset="utf-8">
     <title>CryptoSim</title>
     <style media="screen">
@@ -12,12 +13,16 @@
     body { background: #292e44; }
     #root { position: relative; height: 100%; }
     .fade2black { animation: fade2black 2s ease-in; position: absolute; z-index: 2; left: 0; right: 0; top: 0; bottom: 0; background: #000; }
-    .price { color: #fff; font-size: 24px; position: absolute;bottom: 10vh; left: 5vw; z-index: 1; padding: 10px; }
+    .price { position: absolute; color: #fff; font-size: 24px; z-index: 1; padding: 20px; }
+    @media screen and (min-width: 750px) { .price {  left: 5vw; bottom: 10vh; padding: 10px; } }
+
     .chart { transition: transform 0.2s ease-in-out, left 0.2s ease-in; padding: 10px; position: relative; height: 100%; display: flex;  }
     .bar { animation: reveal 0.2s ease-in; flex-shrink: 0; position: relative; width: 20px; border-radius: 4px; margin: 0 5px; }
     .bar.up { background:#0fb88a; transform-origin: bottom; }
     .bar.down { background:#e13349; transform-origin: top; }
-    .trade { position: absolute; bottom: 10vh; right: 5vw; padding: 20px;  display: flex; flex-direction: column; }
+    .trade { position: absolute; bottom: 20px; padding: 20px; display: flex; flex-direction: column; }
+    @media screen and (min-width: 750px) { .trade { bottom: 10vh; right: 5vw;  } }
+
     .stats { font-size: 18px; display: flex; color: #fff; padding-bottom: 15px; justify-content: space-between;}
     .stats b, .price b { margin-right: 5px;}
     .amount { width: 100%; margin-bottom: 17px; border-radius: 2px; outline: 2px solid rgba(0,0,0,1); font-size: 40px; border: 0; background: rgba(0,0,0,0.4); padding: 10px 10px; color: #fff }
